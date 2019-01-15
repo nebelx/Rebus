@@ -28,8 +28,7 @@ namespace Rebus.Sagas
             return CachedUserHasOverriddenConflictResolutionMethod
                 .GetOrAdd(GetType(), type =>
                 {
-                    var typeDeclaringTheConflictResolutionMethod = GetType()
-                        .GetMethod("ResolveConflict", BindingFlags.Instance | BindingFlags.NonPublic).DeclaringType;
+                    var typeDeclaringTheConflictResolutionMethod = GetType().GetMethod("ResolveConflict", BindingFlags.Instance | BindingFlags.NonPublic)?.DeclaringType;
 
                     if (typeDeclaringTheConflictResolutionMethod == null)
                     {
@@ -115,7 +114,7 @@ namespace Rebus.Sagas
 
         internal sealed override async Task InvokeConflictResolution(ISagaData otherSagaData)
         {
-            await ResolveConflict((TSagaData)otherSagaData).ConfigureAwait(false);
+            await ResolveConflict((TSagaData)otherSagaData);
         }
 
         /// <summary>

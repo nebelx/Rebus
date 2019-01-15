@@ -2,6 +2,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using NUnit.Framework;
 using Rebus.Activation;
@@ -43,10 +44,10 @@ namespace Rebus.Tests.Backoff
                     o.SetBackoffTimes(TimeSpan.FromSeconds(0.2));
 
                     // install the snitch
-                    o.Decorate<ISyncBackoffStrategy>(c =>
+                    o.Decorate<IBackoffStrategy>(c =>
                     {
-                        var syncBackoffStrategy = c.Get<ISyncBackoffStrategy>();
-                        _snitch.SyncBackoffStrategy = syncBackoffStrategy;
+                        var backoffStrategy = c.Get<IBackoffStrategy>();
+                        _snitch.BackoffStrategy = backoffStrategy;
                         return _snitch;
                     });
 
@@ -103,40 +104,57 @@ namespace Rebus.Tests.Backoff
                 .GetIntervals(TimeSpan.FromSeconds(1));
 
             Console.WriteLine(string.Join(Environment.NewLine,
-                seconds.Select(time => $"{time}: {new string('.', waitsPerSecond.GetValueOrDefault(time))}{new string('*', waitNoMessagesPerSecond.GetValueOrDefault(time))}")));
+                seconds.Select(time => $"{time}: {new string('.', waitsPerSecond.GetOrDefault(time))}{new string('*', waitNoMessagesPerSecond.GetOrDefault(time))}")));
         }
 
-        class BackoffSnitch : ISyncBackoffStrategy
+        class BackoffSnitch : IBackoffStrategy
         {
             readonly ConcurrentQueue<DateTime> _waitTimes = new ConcurrentQueue<DateTime>();
             readonly ConcurrentQueue<DateTime> _waitNoMessageTimes = new ConcurrentQueue<DateTime>();
 
-            public ISyncBackoffStrategy SyncBackoffStrategy { get; set; }
+            public IBackoffStrategy BackoffStrategy { get; set; }
 
             public IEnumerable<DateTime> WaitTimes => _waitTimes;
             public IEnumerable<DateTime> WaitNoMessageTimes => _waitNoMessageTimes;
 
             public void Reset()
             {
-                SyncBackoffStrategy.Reset();
+                BackoffStrategy.Reset();
             }
 
             public void WaitNoMessage()
             {
                 _waitNoMessageTimes.Enqueue(DateTime.UtcNow);
-                SyncBackoffStrategy.WaitNoMessage();
+                BackoffStrategy.WaitNoMessage();
             }
 
-            public void Wait()
+	        public Task WaitNoMessageAsync(CancellationToken token)
+	        {
+		        _waitNoMessageTimes.Enqueue(DateTime.UtcNow);
+		        return BackoffStrategy.WaitNoMessageAsync(token);
+	        }
+
+			public void Wait(CancellationToken token)
+			{
+				_waitTimes.Enqueue(DateTime.UtcNow);
+				BackoffStrategy.Wait(token);
+			}
+
+	        public Task WaitAsync(CancellationToken token)
+	        {
+		        _waitTimes.Enqueue(DateTime.UtcNow);
+		        return BackoffStrategy.WaitAsync(token);
+	        }
+
+			public void WaitError()
             {
-                _waitTimes.Enqueue(DateTime.UtcNow);
-                SyncBackoffStrategy.Wait();
+                BackoffStrategy.WaitError();
             }
 
-            public void WaitError()
-            {
-                SyncBackoffStrategy.WaitError();
-            }
+	        public Task WaitErrorAsync(CancellationToken token)
+	        {
+		        return BackoffStrategy.WaitErrorAsync(token);
+	        }
         }
-    }
+	}
 }

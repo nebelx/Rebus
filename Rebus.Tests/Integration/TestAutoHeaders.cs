@@ -9,7 +9,6 @@ using Rebus.Config;
 using Rebus.Messages;
 using Rebus.Tests.Contracts;
 using Rebus.Tests.Contracts.Extensions;
-using Rebus.Tests.Extensions;
 using Rebus.Transport.InMem;
 #pragma warning disable 1998
 
@@ -26,6 +25,7 @@ namespace Rebus.Tests.Integration
             _activator = Using(new BuiltinHandlerActivator());
 
             _bus = Configure.With(_activator)
+                .Logging(l => l.Console())
                 .Transport(t => t.UseInMemoryTransport(new InMemNetwork(), "headers"))
                 .Start();
         }

@@ -11,12 +11,7 @@ namespace Rebus.Tests.Contracts
         /// </summary>
         public static string DirectoryPath()
         {
-#if NET45
-        return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "test");
-#elif NETSTANDARD1_3
-        return Path.Combine(AppContext.BaseDirectory, "test");
-#endif
-
+            return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "test");
         }
 
         /// <summary>

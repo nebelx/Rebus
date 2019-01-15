@@ -19,7 +19,7 @@ namespace Rebus.Pipeline.Receive
         /// </summary>
         public DeserializeIncomingMessageStep(ISerializer serializer)
         {
-            _serializer = serializer;
+            _serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
         }
 
         /// <summary>
@@ -29,9 +29,9 @@ namespace Rebus.Pipeline.Receive
         public async Task Process(IncomingStepContext context, Func<Task> next)
         {
             var transportMessage = context.Load<TransportMessage>();
-            var message = await _serializer.Deserialize(transportMessage).ConfigureAwait(false);
+            var message = await _serializer.Deserialize(transportMessage);
             context.Save(message);
-            await next().ConfigureAwait(false);
+            await next();
         }
     }
 }

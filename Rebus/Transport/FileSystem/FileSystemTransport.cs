@@ -25,6 +25,7 @@ namespace Rebus.Transport.FileSystem
 
         readonly ConcurrentDictionary<string, object> _messagesBeingHandled = new ConcurrentDictionary<string, object>();
         readonly ConcurrentBag<string> _queuesAlreadyInitialized = new ConcurrentBag<string>();
+        readonly IRebusTime _rebusTime;
         readonly string _baseDirectory;
         readonly string _inputQueue;
 
@@ -35,8 +36,9 @@ namespace Rebus.Transport.FileSystem
         /// While it is apparent that <seealso cref="_baseDirectory"/> must be a valid directory name, please note that 
         /// <seealso cref="_inputQueue"/> must not contain any invalid path either.
         /// </summary>
-        public FileSystemTransport(string baseDirectory, string inputQueue)
+        public FileSystemTransport(IRebusTime rebusTime, string baseDirectory, string inputQueue)
         {
+            _rebusTime = rebusTime ?? throw new ArgumentNullException(nameof(rebusTime));
             _baseDirectory = baseDirectory;
 
             if (inputQueue == null) return;
@@ -74,7 +76,7 @@ namespace Rebus.Transport.FileSystem
                 using (var stream = File.OpenWrite(fullPath))
                 using (var writer = new StreamWriter(stream, FavoriteEncoding))
                 {
-                    await writer.WriteAsync(serializedMessage).ConfigureAwait(false);
+                    await writer.WriteAsync(serializedMessage);
                 }
             });
         }
@@ -106,7 +108,7 @@ namespace Rebus.Transport.FileSystem
 
                 if (fullPath == null) return null;
 
-                var jsonText = await ReadAllText(fullPath).ConfigureAwait(false);
+                var jsonText = await ReadAllText(fullPath);
                 var receivedTransportMessage = Deserialize(jsonText);
 
                 if (receivedTransportMessage.Headers.TryGetValue(Headers.TimeToBeReceived, out var timeToBeReceived))
@@ -114,7 +116,7 @@ namespace Rebus.Transport.FileSystem
                     var maxAge = TimeSpan.Parse(timeToBeReceived);
 
                     var creationTimeUtc = File.GetCreationTimeUtc(fullPath);
-                    var nowUtc = RebusTime.Now.UtcDateTime;
+                    var nowUtc = _rebusTime.Now.UtcDateTime;
 
                     var messageAge = nowUtc - creationTimeUtc;
 
@@ -156,7 +158,7 @@ namespace Rebus.Transport.FileSystem
             using (var stream = File.OpenRead(fileName))
             using (var reader = new StreamReader(stream, FavoriteEncoding))
             {
-                return await reader.ReadToEndAsync().ConfigureAwait(false);
+                return await reader.ReadToEndAsync();
             }
         }
 

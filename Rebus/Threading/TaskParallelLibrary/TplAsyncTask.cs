@@ -45,13 +45,10 @@ namespace Rebus.Threading.TaskParallelLibrary
         /// </summary>
         public TimeSpan Interval
         {
-            get { return _interval; }
-            set
-            {
-                _interval = value < TimeSpan.FromMilliseconds(100)
-                    ? TimeSpan.FromMilliseconds(100)
-                    : value;
-            }
+            get => _interval;
+            set => _interval = value < TimeSpan.FromMilliseconds(100)
+                ? TimeSpan.FromMilliseconds(100)
+                : value;
         }
 
         /// <summary>
@@ -68,25 +65,25 @@ namespace Rebus.Threading.TaskParallelLibrary
 
             var token = _tokenSource.Token;
 
+            // don't pass cancellation token to this one, as it might cancel prematurely, thus not setting our reset event as required
+            // ReSharper disable once MethodSupportsCancellation
             _task = Task.Run(async () =>
             {
                 try
                 {
-                    while (true)
+                    while (!token.IsCancellationRequested)
                     {
                         var intervalAboveZero = Interval;
 
-                        await Task.Delay(intervalAboveZero, token).ConfigureAwait(false);
-
-                        token.ThrowIfCancellationRequested();
+                        await Task.Delay(intervalAboveZero, token);
 
                         try
                         {
-                            await _action().ConfigureAwait(false);
+                            await _action();
                         }
-                        catch (TaskCanceledException)
+                        catch (OperationCanceledException) when (token.IsCancellationRequested)
                         {
-                            throw;
+                            // it's fine, we're shutting down
                         }
                         catch (Exception exception)
                         {
@@ -94,11 +91,15 @@ namespace Rebus.Threading.TaskParallelLibrary
                         }
                     }
                 }
-                catch (TaskCanceledException)
+                catch (OperationCanceledException) when (token.IsCancellationRequested)
+                {
+                    // it's fine, we're shutting down
+                }
+                finally
                 {
                     _finished.Set();
                 }
-            }, token);
+            });
         }
 
         /// <summary>
@@ -127,7 +128,6 @@ namespace Rebus.Threading.TaskParallelLibrary
                 _disposed = true;
             }
         }
-
 
         void LogStartStop(string message, params object[] objs)
         {

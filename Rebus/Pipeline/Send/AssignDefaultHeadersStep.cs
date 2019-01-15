@@ -2,8 +2,8 @@
 using System;
 using System.Threading.Tasks;
 using Rebus.Transport;
-using Rebus.Time;
 using Rebus.Extensions;
+using Rebus.Time;
 
 namespace Rebus.Pipeline.Send
 {
@@ -27,16 +27,20 @@ namespace Rebus.Pipeline.Send
 (*) Unless explicitly set to something else")]
     public class AssignDefaultHeadersStep : IOutgoingStep
     {
+        readonly IRebusTime _rebusTime;
         readonly bool _hasOwnAddress;
-        readonly string _address;
+        readonly string _senderAddress;
+        readonly string _returnAddress;
 
         /// <summary>
         /// Constructs the step, getting the input queue address from the given <see cref="ITransport"/>
         /// </summary>
-        public AssignDefaultHeadersStep(ITransport transport)
+        public AssignDefaultHeadersStep(ITransport transport, IRebusTime rebusTime, string defaultReturnAddressOrNull)
         {
-            _address = transport.Address;
-            _hasOwnAddress = !string.IsNullOrWhiteSpace(_address);
+            _rebusTime = rebusTime ?? throw new ArgumentNullException(nameof(rebusTime));
+            _senderAddress = transport.Address;
+            _returnAddress = defaultReturnAddressOrNull ?? transport.Address;
+            _hasOwnAddress = !string.IsNullOrWhiteSpace(_senderAddress);
         }
 
         /// <summary>
@@ -55,17 +59,26 @@ namespace Rebus.Pipeline.Send
 
             if (_hasOwnAddress && !headers.ContainsKey(Headers.ReturnAddress))
             {
-                headers[Headers.ReturnAddress] = _address;
+                headers[Headers.ReturnAddress] =  _returnAddress;
             }
 
-            headers[Headers.SentTime] = RebusTime.Now.ToString("O");
+            headers[Headers.SentTime] = _rebusTime.Now.ToString("O");
+
+            if (_hasOwnAddress)
+            {
+                headers[Headers.SenderAddress] = _senderAddress;
+            }
+            else
+            {
+                headers.Remove(Headers.SenderAddress);
+            }
 
             if (!headers.ContainsKey(Headers.Type))
             {
                 headers[Headers.Type] = messageType.GetSimpleAssemblyQualifiedName();
             }
 
-            await next().ConfigureAwait(false);
+            await next();
         }
     }
 }

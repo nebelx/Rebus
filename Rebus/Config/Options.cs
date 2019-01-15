@@ -57,6 +57,11 @@ namespace Rebus.Config
         public string ExternalTimeoutManagerAddressOrNull { get; set; }
 
         /// <summary>
+        /// Gets/sets the default return address to use on outgoing messages
+        /// </summary>
+        public string DefaultReturnAddressOrNull { get; set; }
+
+        /// <summary>
         /// Gets/sets the poll interval when checking for due timeouts
         /// </summary>
         public TimeSpan DueTimeoutsPollInterval { get; set; }
@@ -65,5 +70,10 @@ namespace Rebus.Config
         /// Gets/sets the maximum timeout for workers to finish running active handlers after being signaled to stop.
         /// </summary>
         public TimeSpan WorkerShutdownTimeout { get; set; }
+
+        /// <summary>
+        /// Gets/sets the name of the bus. If this is left unset, bus instances will be named with numbers.
+        /// </summary>
+        public string OptionalBusName { get; set; }
     }
 }

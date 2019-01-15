@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Threading.Tasks;
+// ReSharper disable SuggestBaseTypeForParameter
 
 namespace Rebus.Transport
 {
@@ -20,17 +21,41 @@ namespace Rebus.Transport
 
         public ConcurrentDictionary<string, object> Items { get; } = new ConcurrentDictionary<string, object>();
 
-        public void OnCommitted(Func<Task> commitAction) => _onCommittedActions.Enqueue(commitAction);
+        public void OnCommitted(Func<Task> commitAction)
+        {
+            if (_completed)
+                throw new InvalidOperationException("Cannot add OnCommitted action on a complete transaction context;");
 
-        public void OnCompleted(Func<Task> completedAction) => _onCompletedActions.Enqueue(completedAction);
+            _onCommittedActions.Enqueue(commitAction);
+        }
 
-        public void OnAborted(Action abortedAction) => _onAbortedActions.Enqueue(abortedAction);
+        public void OnCompleted(Func<Task> completedAction)
+        {
+            if (_completed)
+                throw new InvalidOperationException("Cannot add OnCompleted an action on a complete transaction context;");
 
-        public void OnDisposed(Action disposedAction) => _onDisposedActions.Enqueue(disposedAction);
+            _onCompletedActions.Enqueue(completedAction);
+        }
+
+        public void OnAborted(Action abortedAction)
+        {
+            if (_completed)
+                throw new InvalidOperationException("Cannot add OnAborted an action on a complete transaction context;");
+
+            _onAbortedActions.Enqueue(abortedAction);
+        }
+
+        public void OnDisposed(Action disposedAction)
+        {
+            if (_completed)
+                throw new InvalidOperationException("Cannot add OnDisposed an action on a complete transaction context;");
+
+            _onDisposedActions.Enqueue(disposedAction);
+        }
 
         public void Abort() => _mustAbort = true;
 
-        public async Task Commit() => await Invoke(_onCommittedActions).ConfigureAwait(false);
+        public async Task Commit() => await Invoke(_onCommittedActions);
 
         public void Dispose()
         {
@@ -69,9 +94,9 @@ namespace Rebus.Transport
                 return;
             }
 
-            await RaiseCommitted().ConfigureAwait(false);
+            await RaiseCommitted();
 
-            await RaiseCompleted().ConfigureAwait(false);
+            await RaiseCompleted();
 
             Dispose();
         }
@@ -83,11 +108,11 @@ namespace Rebus.Transport
             _aborted = true;
         }
 
-        async Task RaiseCommitted() => await Invoke(_onCommittedActions).ConfigureAwait(false);
+        async Task RaiseCommitted() => await Invoke(_onCommittedActions);
 
         async Task RaiseCompleted()
         {
-            await Invoke(_onCompletedActions).ConfigureAwait(false);
+            await Invoke(_onCompletedActions);
             _completed = true;
         }
 
@@ -103,7 +128,7 @@ namespace Rebus.Transport
         {
             while (actions.TryDequeue(out var action))
             {
-                await action().ConfigureAwait(false);
+                await action();
             }
         }
     }

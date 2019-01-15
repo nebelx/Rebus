@@ -51,13 +51,7 @@ namespace Rebus.Persistence.FileSystem
             }
             catch (Exception exception)
             {
-#if NETSTANDARD1_3
-                var message =
-                    $"Could not write dummy file to saga snapshot directory '{_snapshotDirectory}' - is it writable for the current user account?";
-#else
-                var message =
-                    $"Could not write dummy file to saga snapshot directory '{_snapshotDirectory}' - is it writable for the {Environment.UserDomainName} / {Environment.UserName} account?";
-#endif
+                var message = $"Could not write dummy file to saga snapshot directory '{_snapshotDirectory}' - is it writable for the {Environment.UserDomainName} / {Environment.UserName} account?";
 
                 throw new IOException(message, exception);
             }
@@ -91,7 +85,7 @@ namespace Rebus.Persistence.FileSystem
             {
                 using (var writer = new StreamWriter(file, Encoding.UTF8))
                 {
-                    await writer.WriteAsync(jsonText).ConfigureAwait(false);
+                    await writer.WriteAsync(jsonText);
                 }
             }
         }

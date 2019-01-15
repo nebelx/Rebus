@@ -2,10 +2,11 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace Rebus.Workers.ThreadPoolBased
 {
-    class DefaultSyncBackoffStrategy : ISyncBackoffStrategy
+    class DefaultBackoffStrategy : IBackoffStrategy
     {
         readonly TimeSpan[] _backoffTimes;
 
@@ -14,7 +15,7 @@ namespace Rebus.Workers.ThreadPoolBased
         /// <summary>
         /// Constructs the backoff strategy with the given waiting times
         /// </summary>
-        public DefaultSyncBackoffStrategy(IEnumerable<TimeSpan> backoffTimes)
+        public DefaultBackoffStrategy(IEnumerable<TimeSpan> backoffTimes)
         {
             if (backoffTimes == null) throw new ArgumentNullException(nameof(backoffTimes));
 
@@ -26,23 +27,45 @@ namespace Rebus.Workers.ThreadPoolBased
             }
         }
 
+        /// <param name="token"></param>
         /// <inheritdoc />
-        public void Wait()
+        public void Wait(CancellationToken token)
         {
             InnerWait();
         }
 
+        /// <param name="cancellationToken"></param>
         /// <inheritdoc />
-        public void WaitNoMessage()
+        public Task WaitAsync(CancellationToken cancellationToken)
+	    {
+		    return InnerWaitAsync();
+	    }
+
+		/// <inheritdoc />
+		public void WaitNoMessage()
+	    {
+		    InnerWait();
+	    }
+
+        /// <param name="token"></param>
+        /// <inheritdoc />
+        public Task WaitNoMessageAsync(CancellationToken token)
         {
-            InnerWait();
+            return InnerWaitAsync();
         }
 
+	    /// <inheritdoc />
+	    public void WaitError()
+	    {
+			Thread.Sleep(TimeSpan.FromSeconds(5));
+	    }
+
+        /// <param name="token"></param>
         /// <inheritdoc />
-        public void WaitError()
-        {
-            Thread.Sleep(TimeSpan.FromSeconds(5));
-        }
+        public async Task WaitErrorAsync(CancellationToken token)
+	    {
+		    await Task.Delay(TimeSpan.FromSeconds(5));
+	    }
 
         /// <inheritdoc />
         public void Reset()
@@ -50,7 +73,21 @@ namespace Rebus.Workers.ThreadPoolBased
             Interlocked.Exchange(ref _waitTimeTicks, 0);
         }
 
+        async Task InnerWaitAsync()
+        {
+            var backoffTime = GetNextBackoffTime();
+
+            await Task.Delay(backoffTime);
+        }
+
         void InnerWait()
+        {
+            var backoffTime = GetNextBackoffTime();
+
+            Thread.Sleep(backoffTime);
+        }
+
+        TimeSpan GetNextBackoffTime()
         {
             var waitedSinceTicks = Interlocked.Read(ref _waitTimeTicks);
 
@@ -65,8 +102,7 @@ namespace Rebus.Workers.ThreadPoolBased
             var waitTimeIndex = Math.Max(0, Math.Min(totalSecondsIdle, _backoffTimes.Length - 1));
 
             var backoffTime = _backoffTimes[waitTimeIndex];
-
-            Thread.Sleep(backoffTime);
+            return backoffTime;
         }
     }
 }

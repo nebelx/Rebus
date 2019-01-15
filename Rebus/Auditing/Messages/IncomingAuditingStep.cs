@@ -16,14 +16,16 @@ namespace Rebus.Auditing.Messages
     {
         readonly AuditingHelper _auditingHelper;
         readonly ITransport _transport;
+        readonly IRebusTime _rebusTime;
 
         /// <summary>
         /// Constructs the step
         /// </summary>
-        public IncomingAuditingStep(AuditingHelper auditingHelper, ITransport transport)
+        public IncomingAuditingStep(AuditingHelper auditingHelper, ITransport transport, IRebusTime rebusTime)
         {
             _auditingHelper = auditingHelper;
             _transport = transport;
+            _rebusTime = rebusTime;
         }
 
         public void Initialize()
@@ -33,9 +35,9 @@ namespace Rebus.Auditing.Messages
 
         public async Task Process(IncomingStepContext context, Func<Task> next)
         {
-            var begin = RebusTime.Now;
+            var begin = _rebusTime.Now;
 
-            await next().ConfigureAwait(false);
+            await next();
 
             var transactionContext = context.Load<ITransactionContext>();
             var transportMessage = context.Load<TransportMessage>();
@@ -46,7 +48,7 @@ namespace Rebus.Auditing.Messages
 
             clone.Headers[AuditHeaders.HandleTime] = begin.ToString("O");
 
-            await _transport.Send(_auditingHelper.AuditQueue, clone, transactionContext).ConfigureAwait(false);
+            await _transport.Send(_auditingHelper.AuditQueue, clone, transactionContext);
         }
     }
 }

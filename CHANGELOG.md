@@ -1214,15 +1214,58 @@
 
 * Re-publish 4.2.0 because the Rebus.dll generated in 4.2.0 had version 1.0.0 and not the correct version
 
-## 5.0.0-b02
+## 4.2.2
+
+* Remove `.ConfigureAwait(false)` throughout, because it messes up the ability to carry ambient contexts into callbacks, which (via decorators) is one of Rebus' most important extensibility points - thanks [oliverhanappi]
+
+## 4.3.0
+
+* Add methods to in-mem persistence providers, making it easier to inspect them e.g. when testing - thanks [oliverhanappi]
+
+## 5.0.0
 
 * Move entire `Rebus.Testing` namespace to its own NuGet package: `Rebus.TestHelpers` (named "TestHelpers" to avoid confusing it with Rebus' own test project, and just because it's more appropriate)
-* Ensure disposal of all `IDisposable` instances tracked by Injectionist in the event that an ´IInitializable´ fails during startup
+* Ensure disposal of all `IDisposable` instances tracked by Injectionist in the event that an `IInitializable` fails during startup
 * Add option to omit type information from serialized JSON text, thus saving lots of space and making the serialized JSON more pure at the expense of .NET object serialization power
 * Provide `Defer` method on `IRoutingApi` allowing for easily deferring explicitly routed messages
+* Ability to "name the bus", allowing for using something more descriptive than the default "Rebus 1", "Rebus 2"S names
+* Change built-in console logging to use abbr. log lvls.
+* Deferred start capability - call `Create()` instead of `Start()`, and the returned `IBusStarter` can be used to start message processing when it is desired to do so
+* Make in-mem error tracking max age configurable (defaults to 10 minutes)
+* Update JSON.NET dep to 11.0.1
+* Introduce extensibility point `ITopicNameConvention` for defining how types are mapped to topics - thanks [heberop]
+* Factor 40 improvement of "simple assembly-qualified type name" lookup
+* Factor 2.5 improvement of type lookup in JSON serializer
+* Introduce interface for locking saga data based on correlation properties, enabling the use of distributed locks - thanks [torangel]
+* Fail fast when message cannot be delivered to any handlers, basically assuming that the situation will not correct itself anyway
+* Add appropriate constructors to `IdempotencyData` to accomodate certain stubborn serializers
+* Change signature of several methods of the backoff strategy to be async to avoid accidentally blocking thread pool threads - thanks [Plasma]
+* Include symbol packages in the nuggie - thanks [poizan42]
+* Add sender's address to all outgoing messages
+* Ability to override `HandlerInvoker` instances created in the `ActivateHandlersStep` by overriding - thanks [Liero]
+* Remove .NET Standard 1.3 as a target
+
+## 5.0.1
+
+* Throw exceptions in `TransactionContext` when hooking up callbacks after it has been completed (usually a sign of `async` stuff not being `await`ed) - thanks [mattwhetton]
+
+## 5.0.2
+
+* Add count methods form `InMemNetwork` - thanks [caspertdk]
+
+## 5.1.0
+
+* Port changes from 4.3.0 forward
+
+## 5.2.0
+
+* Allow for setting the default return address by going `.Options(o => o.SetDefaultReturnAddress("another-queue"))`
+
+## 5.2.1
+
+* Fix subtle cancellation/timing bug in `TplAsyncTask` which would lead to disposal taking several seconds, logging a warning that it took a long time
 
 ---
-
 
 [AndreaCuneo]: https://github.com/AndreaCuneo
 [arneeiri]: https://github.com/arneeiri
@@ -1240,14 +1283,17 @@
 [gertjvr]: https://github.com/gertjvr
 [hagbarddenstore]: https://github.com/hagbarddenstore
 [Hangsolow]: https://github.com/Hangsolow
+[heberop]: https://github.com/heberop
 [jasperdk]: https://github.com/jasperdk
 [jeffreyabecker]: https://github.com/jeffreyabecker
 [joshua5822]: https://github.com/joshua5822
 [jsvahn]: https://github.com/jsvahn
 [kevbite]: https://github.com/kevbite
 [krivin]: https://github.com/krivin
+[Liero]: https://github.com/Liero
 [madstt]: https://github.com/madstt
 [maeserichar]: https://github.com/maeserichar
+[mattwhetton]: https://github.com/mattwhetton
 [maxx1337]: https://github.com/maxx1337
 [mclausen]: https://github.com/mclausen
 [meyce]: https://github.com/Meyce
@@ -1259,8 +1305,11 @@
 [mvandevy]: https://github.com/mvandevy
 [NKnusperer]: https://github.com/NKnusperer
 [oguzhaneren]: https://github.com/oguzhaneren
+[oliverhanappi]: https://github.com/oliverhanappi
 [PeteProgrammer]: https://github.com/PeteProgrammer
 [pheiberg]: https://github.com/pheiberg
+[Plasma]: https://github.com/Plasma
+[poizan42]: https://github.com/poizan42
 [pruiz]: https://github.com/pruiz
 [puzsol]: https://github.com/puzsol
 [runes83]: https://github.com/runes83

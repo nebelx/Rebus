@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
@@ -47,7 +46,7 @@ Headers already on the message will not be overwritten.")]
                 headers[autoHeader.Key] = autoHeader.Value;
             }
 
-            await next().ConfigureAwait(false);
+            await next();
         }
     }
 }

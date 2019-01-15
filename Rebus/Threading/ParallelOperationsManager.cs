@@ -36,7 +36,6 @@ namespace Rebus.Threading
             return new ParallelOperation(canContinue, this);
         }
 
-
         void OperationFinished()
         {
             _semaphore.Release(1);
@@ -75,10 +74,7 @@ namespace Rebus.Threading
             /// <summary>
             /// Gets whether the token was successfully acquired
             /// </summary>
-            public bool CanContinue()
-            {
-                return _canContinue;
-            }
+            public bool CanContinue() => _canContinue;
         }
     }
 }

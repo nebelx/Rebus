@@ -21,11 +21,11 @@ namespace Rebus.Workers.ThreadPoolBased
         readonly ParallelOperationsManager _parallelOperationsManager;
         readonly RebusBus _owningBus;
         readonly Options _options;
-        readonly ISyncBackoffStrategy _backoffStrategy;
+        readonly IBackoffStrategy _backoffStrategy;
         readonly Thread _workerThread;
         readonly ILog _log;
 
-        internal ThreadPoolWorker(string name, ITransport transport, IRebusLoggerFactory rebusLoggerFactory, IPipelineInvoker pipelineInvoker, ParallelOperationsManager parallelOperationsManager, RebusBus owningBus, Options options, ISyncBackoffStrategy backoffStrategy)
+        internal ThreadPoolWorker(string name, ITransport transport, IRebusLoggerFactory rebusLoggerFactory, IPipelineInvoker pipelineInvoker, ParallelOperationsManager parallelOperationsManager, RebusBus owningBus, Options options, IBackoffStrategy backoffStrategy)
         {
             Name = name;
             _log = rebusLoggerFactory.GetLogger<ThreadPoolWorker>();
@@ -59,7 +59,7 @@ namespace Rebus.Workers.ThreadPoolBased
                 }
                 catch (Exception exception)
                 {
-                    _log.Error(exception, "Unhandled exception in worker!!");
+                    _log.Error(exception, "Unhandled exception in worker {workerName} when try-receiving", Name);
 
                     _backoffStrategy.WaitError();
                 }
@@ -76,49 +76,56 @@ namespace Rebus.Workers.ThreadPoolBased
 
             if (!parallelOperation.CanContinue())
             {
-                _backoffStrategy.Wait();
+                _backoffStrategy.Wait(token);
                 return;
             }
 
-            TryAsyncReceive(token, parallelOperation);
+            TryAsyncReceive(token, parallelOperation)
+                .ContinueWith(LogException, TaskContinuationOptions.OnlyOnFaulted);
         }
 
-        async void TryAsyncReceive(CancellationToken token, IDisposable parallelOperation)
+        void LogException(Task task)
+        {
+            var exception = task.Exception;
+            if (exception == null) return;
+            _log.Error(exception, "Unhandled exception in worker {workerName}", Name);
+        }
+
+        async Task TryAsyncReceive(CancellationToken token, IDisposable parallelOperation)
         {
             try
             {
                 using (parallelOperation)
-                using (var context = new TransactionContext())
+                using (var context = new TransactionContextWithOwningBus(_owningBus))
                 {
-                    var transportMessage = await ReceiveTransportMessage(token, context).ConfigureAwait(false);
+                    var transportMessage = await ReceiveTransportMessage(token, context);
 
                     if (transportMessage == null)
                     {
                         context.Dispose();
 
+                        // get out quickly if we're shutting down
+                        if (token.IsCancellationRequested) return;
+
                         // no need for another thread to rush in and discover that there is no message
                         //parallelOperation.Dispose();
 
-                        _backoffStrategy.WaitNoMessage();
+                        await _backoffStrategy.WaitNoMessageAsync(token);
                         return;
                     }
 
-                    _backoffStrategy.Reset();
+	                _backoffStrategy.Reset();
 
-                    await ProcessMessage(context, transportMessage).ConfigureAwait(false);
+                    await ProcessMessage(context, transportMessage);
                 }
             }
-            catch (TaskCanceledException)
-            {
-                // it's fine - just a sign that we are shutting down
-            }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
             {
                 // it's fine - just a sign that we are shutting down
             }
             catch (Exception exception)
             {
-                _log.Error(exception, "Unhandled exception in thread pool worker");
+                _log.Error(exception, "Unhandled exception in worker {workerName}", Name);
             }
         }
 
@@ -126,23 +133,18 @@ namespace Rebus.Workers.ThreadPoolBased
         {
             try
             {
-                return await _transport.Receive(context, token).ConfigureAwait(false);
+                return await _transport.Receive(context, token);
             }
-            catch (TaskCanceledException)
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
             {
                 // it's fine - just a sign that we are shutting down
-                throw;
-            }
-            catch (OperationCanceledException)
-            {
-                // it's fine - just a sign that we are shutting down
-                throw;
+                return null;
             }
             catch (Exception exception)
             {
                 _log.Warn("An error occurred when attempting to receive the next message: {exception}", exception);
 
-                _backoffStrategy.WaitError();
+                await _backoffStrategy.WaitErrorAsync(token);
 
                 return null;
             }
@@ -152,16 +154,14 @@ namespace Rebus.Workers.ThreadPoolBased
         {
             try
             {
-                context.Items["OwningBus"] = _owningBus;
-
                 AmbientTransactionContext.SetCurrent(context);
 
                 var stepContext = new IncomingStepContext(transportMessage, context);
-                await _pipelineInvoker.Invoke(stepContext).ConfigureAwait(false);
+                await _pipelineInvoker.Invoke(stepContext);
 
                 try
                 {
-                    await context.Complete().ConfigureAwait(false);
+                    await context.Complete();
                 }
                 catch (Exception exception)
                 {
@@ -194,7 +194,8 @@ namespace Rebus.Workers.ThreadPoolBased
 
             if (!_workerShutDown.WaitOne(_options.WorkerShutdownTimeout))
             {
-                _log.Warn("The {workerName} worker did not shut down within {shutdownTimeoutSeconds} seconds!", _options.WorkerShutdownTimeout.TotalSeconds);
+                _log.Warn("The {workerName} worker did not shut down within {shutdownTimeoutSeconds} seconds!",
+                    Name, _options.WorkerShutdownTimeout.TotalSeconds);
             }
         }
     }

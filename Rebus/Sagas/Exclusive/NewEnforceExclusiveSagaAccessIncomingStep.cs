@@ -7,6 +7,7 @@ using Rebus.Messages;
 using Rebus.Pipeline;
 using Rebus.Pipeline.Receive;
 using Rebus.Transport;
+// ReSharper disable ForCanBeConvertedToForeach
 
 namespace Rebus.Sagas.Exclusive
 {
@@ -32,7 +33,7 @@ namespace Rebus.Sagas.Exclusive
 
             if (!handlerInvokersForSagas.Any())
             {
-                await next().ConfigureAwait(false);
+                await next();
                 return;
             }
 
@@ -62,8 +63,8 @@ namespace Rebus.Sagas.Exclusive
 
             try
             {
-                await WaitForLocks(locksToObtain).ConfigureAwait(false);
-                await next().ConfigureAwait(false);
+                await WaitForLocks(locksToObtain);
+                await next();
             }
             finally
             {
@@ -76,7 +77,7 @@ namespace Rebus.Sagas.Exclusive
             for (var index = 0; index < lockIds.Count; index++)
             {
                 var id = lockIds[index];
-                await _locks[id].WaitAsync(_cancellationToken).ConfigureAwait(false);
+                await _locks[id].WaitAsync(_cancellationToken);
             }
         }
 
